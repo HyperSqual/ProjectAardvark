@@ -330,8 +330,8 @@ public final class FaceTrackerActivity extends AppCompatActivity {
             mOverlay.add(mFaceGraphic);
             mFaceGraphic.updateFace(face);
             Vibrator v = (Vibrator) this.context.getSystemService(Context.VIBRATOR_SERVICE);
-            // Vibrate for 500 milliseconds
-            v.vibrate(100);
+            // Vibrate for 10 milliseconds
+            v.vibrate(10);
         }
 
         /**
