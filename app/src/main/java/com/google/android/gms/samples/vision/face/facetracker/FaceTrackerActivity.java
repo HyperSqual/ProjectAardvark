@@ -24,6 +24,7 @@ import android.app.Notification;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
@@ -43,6 +44,9 @@ import com.google.android.gms.vision.MultiProcessor;
 import com.google.android.gms.vision.Tracker;
 import com.google.android.gms.vision.face.Face;
 import com.google.android.gms.vision.face.FaceDetector;
+
+import com.google.android.gms.vision.face.LargestFaceFocusingProcessor;
+
 import com.google.android.gms.samples.vision.face.facetracker.ui.camera.CameraSourcePreview;
 import com.google.android.gms.samples.vision.face.facetracker.ui.camera.GraphicOverlay;
 
@@ -135,7 +139,7 @@ public final class FaceTrackerActivity extends AppCompatActivity {
                 .build();
 
         detector.setProcessor(
-                new MultiProcessor.Builder<>(new GraphicFaceTrackerFactory())
+                new LargestFaceFocusingProcessor.Builder(detector, new GraphicFaceTracker(mGraphicOverlay))
                         .build());
 
         if (!detector.isOperational()) {
@@ -150,10 +154,10 @@ public final class FaceTrackerActivity extends AppCompatActivity {
             Log.w(TAG, "Face detector dependencies are not yet available.");
         }
 
-        mCameraSource = new CameraSource.Builder(context, detector)
-                .setRequestedPreviewSize(640, 480)
+        mCameraSource= new CameraSource.Builder(context, detector)
+                .setRequestedPreviewSize(720, 480)
                 .setFacing(CameraSource.CAMERA_FACING_BACK)
-                .setRequestedFps(30.0f)
+                .setRequestedFps(60.0f)
                 .build();
     }
 
@@ -288,7 +292,10 @@ public final class FaceTrackerActivity extends AppCompatActivity {
     private class GraphicFaceTracker extends Tracker<Face> {
         private GraphicOverlay mOverlay;
         private FaceGraphic mFaceGraphic;
+
+
         Context context=getApplicationContext();
+
         GraphicFaceTracker(GraphicOverlay overlay) {
             mOverlay = overlay;
             mFaceGraphic = new FaceGraphic(overlay);
@@ -324,14 +331,38 @@ public final class FaceTrackerActivity extends AppCompatActivity {
         /**
          * Update the position/characteristics of the face within the overlay.
          */
+        Vibrator v = (Vibrator) this.context.getSystemService(Context.VIBRATOR_SERVICE);
         @Override
         public void onUpdate(FaceDetector.Detections<Face> detectionResults, Face face) {
-
+            float centerx=0;
+            float centery=0;
+            int orientation = context.getResources().getConfiguration().orientation;
+            if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                centerx = mFaceGraphic.translateX(mCameraSource.getPreviewSize().getWidth()/2);
+                centery = mFaceGraphic.translateY(mCameraSource.getPreviewSize().getHeight()/2);
+            }
+            if (orientation == Configuration.ORIENTATION_PORTRAIT) {
+                centery = mFaceGraphic.translateX(mCameraSource.getPreviewSize().getWidth()/2);
+                centerx = mFaceGraphic.translateY(mCameraSource.getPreviewSize().getHeight()/2);
+            }
             mOverlay.add(mFaceGraphic);
             mFaceGraphic.updateFace(face);
-            Vibrator v = (Vibrator) this.context.getSystemService(Context.VIBRATOR_SERVICE);
+            float x = mFaceGraphic.translateX(face.getPosition().x + face.getWidth() / 2);
+            float y = mFaceGraphic.translateY(face.getPosition().y + face.getHeight() / 2);
+
+            double distanceFromCenter = Math.sqrt(Math.pow((centerx - x),2) + Math.pow((centery-y),2));
+            Log.d("AA", "centerx:"+Float.toString(centerx)+" "
+                    + "centery:"+Float.toString(centery)+" "
+                    + "x:"+Float.toString(x)+" "
+                    + "y:"+Float.toString(y));
+
+
             // Vibrate for 10 milliseconds
-            v.vibrate(10);
+            //long [] pattern = {0,(long)distanceFromCenter/2,700-(long)distanceFromCenter};
+            //v.vibrate(pattern, 1);
+            if((int)distanceFromCenter>20) {
+                v.vibrate((long) distanceFromCenter / 10);
+            }
         }
 
         /**
@@ -342,6 +373,7 @@ public final class FaceTrackerActivity extends AppCompatActivity {
         @Override
         public void onMissing(FaceDetector.Detections<Face> detectionResults) {
             mOverlay.remove(mFaceGraphic);
+            v.cancel();
         }
 
         /**
@@ -351,6 +383,8 @@ public final class FaceTrackerActivity extends AppCompatActivity {
         @Override
         public void onDone() {
             mOverlay.remove(mFaceGraphic);
+            v.cancel();
         }
+
     }
 }
