@@ -90,6 +90,9 @@ class FaceGraphic extends GraphicOverlay.Graphic {
      */
     @Override
     public void draw(Canvas canvas) {
+        float centerx = canvas.getWidth()/2;
+        float centery = canvas.getHeight()/2;
+        canvas.drawCircle(centerx, centery, FACE_POSITION_RADIUS, mFacePositionPaint);
         Face face = mFace;
         if (face == null) {
             return;
@@ -99,6 +102,10 @@ class FaceGraphic extends GraphicOverlay.Graphic {
         float x = translateX(face.getPosition().x + face.getWidth() / 2);
         float y = translateY(face.getPosition().y + face.getHeight() / 2);
         canvas.drawCircle(x, y, FACE_POSITION_RADIUS, mFacePositionPaint);
+
+        canvas.drawLine(centerx, centery, x, y, mIdPaint);
+        double distanceFromCenter = Math.sqrt(Math.pow((centerx - x),2) + Math.pow((centery-y),2));
+
         canvas.drawText("id: " + mFaceId, x + ID_X_OFFSET, y + ID_Y_OFFSET, mIdPaint);
         canvas.drawText("happiness: " + String.format("%.2f", face.getIsSmilingProbability()), x - ID_X_OFFSET, y - ID_Y_OFFSET, mIdPaint);
         canvas.drawText("right eye: " + String.format("%.2f", face.getIsRightEyeOpenProbability()), x + ID_X_OFFSET * 2, y + ID_Y_OFFSET * 2, mIdPaint);
