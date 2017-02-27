@@ -29,13 +29,19 @@ import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.os.Vibrator;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.NotificationCompat;
+import android.support.v4.app.NotificationCompatBase;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.view.KeyEvent;
+import android.view.InputEvent;
+import android.speech.tts.TextToSpeech;
+import java.util.Locale;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
@@ -52,6 +58,7 @@ import com.google.android.gms.samples.vision.face.facetracker.ui.camera.GraphicO
 
 import java.io.IOException;
 import java.security.AccessControlContext;
+import java.util.ArrayList;
 
 import static com.google.android.gms.samples.vision.face.facetracker.R.raw.success;
 import static java.security.AccessController.getContext;
@@ -74,6 +81,56 @@ public final class FaceTrackerActivity extends AppCompatActivity {
     // Activity Methods
     //==============================================================================================
 
+    private int trackerMode = 0; //0 : Gradient clear to center. 1 : Continuous left, Beeps Right. 2 : Gradient continous left, gradient beeps right
+    private int trackerModeMax = 2;
+    private int countMode = 0; //boolean for count mode
+    TextToSpeech tts;
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) { //catches keypresses
+        int action = event.getAction();
+        int keyCode = event.getKeyCode();
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_VOLUME_UP:        //when volume up is pressed..
+                if (action == KeyEvent.ACTION_DOWN) {
+                    increaseTrackerMode();          //switch to next trackermode
+                }
+                return true;
+            case KeyEvent.KEYCODE_VOLUME_DOWN:
+                if (action == KeyEvent.ACTION_DOWN) { //when volume down is pressed..
+                    toggleCountMode();
+                }
+                return true;
+            default:
+            return super.dispatchKeyEvent(event); //gotta find out how to make this work
+        }
+    }
+
+
+    public void toggleCountMode(){  //toggle if count mode is on
+        if(countMode == 0){         //if count mode is off
+            mCameraSource.release();
+            countMode = 1;          //turn it on
+            createCameraSource();   //recreate cam source
+            startCameraSource();
+        }
+        else if(countMode == 1){ //if count mode on
+            mCameraSource.release();
+            countMode = 0;       //turn it off
+            createCameraSource();//recreate cam source
+            startCameraSource();
+        }
+
+    }
+    public int increaseTrackerMode() { //simple method to count to max, then start over
+        if (trackerMode < trackerModeMax){
+            trackerMode++;
+        }
+        else
+            trackerMode = 0;
+
+        return trackerMode;
+    }
+
     /**
      * Initializes the UI and initiates the creation of a face detector.
      */
@@ -92,6 +149,13 @@ public final class FaceTrackerActivity extends AppCompatActivity {
         } else {
             requestCameraPermission();
         }
+        tts=new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                tts.setLanguage(Locale.UK);
+            }
+        });
+
     }
 
     /**
@@ -138,9 +202,16 @@ public final class FaceTrackerActivity extends AppCompatActivity {
                 .setClassificationType(FaceDetector.ALL_CLASSIFICATIONS)
                 .build();
 
-        detector.setProcessor(
-                new LargestFaceFocusingProcessor.Builder(detector, new GraphicFaceTracker(mGraphicOverlay))
-                        .build());
+        if(countMode == 0) {
+            detector.setProcessor(
+                    new LargestFaceFocusingProcessor.Builder(detector, new GraphicFaceTracker(mGraphicOverlay))
+                            .build());
+        }
+        if(countMode == 1) {
+            detector.setProcessor(
+                    new MultiProcessor.Builder<>(new GraphicFaceTrackerFactory())
+                            .build());
+        }
 
         if (!detector.isOperational()) {
             // Note: The first time that an app using face API is installed on a device, GMS will
@@ -159,6 +230,7 @@ public final class FaceTrackerActivity extends AppCompatActivity {
                 .setFacing(CameraSource.CAMERA_FACING_BACK)
                 .setRequestedFps(60.0f)
                 .build();
+
     }
 
     /**
@@ -178,6 +250,10 @@ public final class FaceTrackerActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         mPreview.stop();
+        if(tts !=null){
+            tts.stop();
+            tts.shutdown();
+        }
     }
 
     /**
@@ -189,6 +265,10 @@ public final class FaceTrackerActivity extends AppCompatActivity {
         super.onDestroy();
         if (mCameraSource != null) {
             mCameraSource.release();
+        }
+        if(tts !=null){
+            tts.stop();
+            tts.shutdown();
         }
     }
 
@@ -283,6 +363,7 @@ public final class FaceTrackerActivity extends AppCompatActivity {
         public Tracker<Face> create(Face face) {
             return new GraphicFaceTracker(mGraphicOverlay);
         }
+
     }
 
     /**
@@ -307,7 +388,132 @@ public final class FaceTrackerActivity extends AppCompatActivity {
         @Override
         public void onNewItem(int faceId, Face item) {
             mFaceGraphic.setId(faceId);
+        }
+        private long lastTimeVibrated = 0; //counter to time vibrations
+        private long waitTime = 10000L;
+        /**
+         * Update the position/characteristics of the face within the overlay.
+         */
+        Vibrator v = (Vibrator) this.context.getSystemService(Context.VIBRATOR_SERVICE);
+        @Override
+        public void onUpdate(FaceDetector.Detections<Face> detectionResults, Face face) {
+            float centerx=0;    //coordinated of the calculated center;
+            float centery=0;
+            int orientation = context.getResources().getConfiguration().orientation;
+            if (orientation == Configuration.ORIENTATION_LANDSCAPE) { //in landscape mode...
+                centerx = mFaceGraphic.translateX(mCameraSource.getPreviewSize().getWidth()/2); //use half of the preview size to get the middle
+                centery = mFaceGraphic.translateY(mCameraSource.getPreviewSize().getHeight()/2);
+            }
+            if (orientation == Configuration.ORIENTATION_PORTRAIT) { //in portrait mode..
+                centery = mFaceGraphic.translateX(mCameraSource.getPreviewSize().getWidth()/2); //switch x and y, for rotated phone
+                centerx = mFaceGraphic.translateY(mCameraSource.getPreviewSize().getHeight()/2);
+            }
+            mOverlay.add(mFaceGraphic);
+            mFaceGraphic.updateFace(face);
+            float x = mFaceGraphic.translateX(face.getPosition().x + face.getWidth() / 2);
+            float y = mFaceGraphic.translateY(face.getPosition().y + face.getHeight() / 2);
 
+            double targetDistance = 30;
+            double distanceFromCenter = Math.sqrt(Math.pow((centerx - x),2) + Math.pow((centery-y),2));
+            double distanceFromCenterX = Math.abs(centerx - x);
+//            Log.d("AA", "centerx:"+Float.toString(centerx)+" "
+//                    + "centery:"+Float.toString(centery)+" "
+//                    + "x:"+Float.toString(x)+" "
+//                    + "y:"+Float.toString(y));
+
+
+            if(countMode==0) { //only do all this stuff if countmode is OFF
+                long[] pattern = {0, 100, 200}; //pattern for beeping
+                long[] patternG = {(long) (0),  //start from ms 0,
+                        (long) (distanceFromCenterX / 2),//vibrate for this amount of ms,
+                        (long) (distanceFromCenterX),}; //silence for this amount of ms
+                long vibrateDelay = 300L;       //300 ms delay between vibrations
+                long vibrateDelayG = patternG[0] + patternG[1] + patternG[2]; //delay based on duration of vibrations
+
+                //Tracker modes!
+                if (trackerMode == 0) {                 //tracker mode 0: gradient, disappearing in middle
+                    if ((int) distanceFromCenter > targetDistance) {
+                        v.vibrate((long) distanceFromCenter / 10);
+                    } else if (distanceFromCenter < targetDistance) { //when we are close enough
+                        playSound(); //play a sound
+                        v.cancel(); //stop vibrating
+                    }
+                } else if (trackerMode == 1) {           //tracker mode 1: left continuous, right periodically
+                    if (distanceFromCenterX > targetDistance) { //if distance from center is greater than 20 px..
+                        if (x < centerx) {          //if face is on the left of center..
+                            v.vibrate((long) 20);   // vibrate continuously
+                        }
+                        if (x > centerx && (System.currentTimeMillis() - lastTimeVibrated > vibrateDelay)) {   //if face is on the right of center
+                            lastTimeVibrated = System.currentTimeMillis();
+                            v.vibrate(pattern, 0);  // vibrate according to pattern
+
+                        }
+                    } else if (distanceFromCenterX < targetDistance) { //close enough
+                        playSound(); //play sound
+                        v.cancel(); //stop vibrating
+                    }
+
+                } else if (trackerMode == 2) {            //tracker mode 2: gradient continuous, gradient periodically
+                    if (distanceFromCenterX > targetDistance) { //if distance from center is greater than 20 px..
+                        if (x < centerx) {          //if face is on the left of center..
+                            v.vibrate((long) distanceFromCenterX / 10);   // vibrate continuously
+                        }
+                        if (x > centerx && (System.currentTimeMillis() - lastTimeVibrated > vibrateDelayG)) {   //if face is on the right of center
+                            lastTimeVibrated = System.currentTimeMillis();
+                            v.vibrate(patternG, 0);  // vibrate according to pattern
+                        }
+                    } else if (distanceFromCenterX < targetDistance) {
+                        playSound(); //play sound
+                        v.cancel(); //stop vibrating
+                    }
+                }
+            }
+
+            else if(countMode==1){ // if count mode is on...!
+
+
+
+                    int amountFaces = detectionResults.getDetectedItems().size(); //count all faces
+                    ArrayList<Integer> patternList = new ArrayList<Integer>();
+                    patternList.add(100); //add delay before beginning
+                    for(int i=0; i < amountFaces; i++){ //loop and add beeps and pauses
+                        patternList.add(100);
+                        patternList.add(200);
+                    }
+                    patternList.add(0);                 //add final beep
+                    patternList.add(2000);              //add final pause
+
+                    //convert ArrayList to array:
+                    long[] pattern = new long[patternList.size()]; //create array size of list
+                    for (int i=0; i < pattern.length; i++)         //loop and add every element
+                    {
+                        pattern[i] = patternList.get(i).intValue();
+                    }
+
+
+                    int totalTime = 100 + 300 * amountFaces + 2000 + 8000; //calculate total time
+                    // vibrate for created pattern once
+
+
+
+                    tts.setLanguage(Locale.US);
+                    if(!tts.isSpeaking()&& System.currentTimeMillis() - lastTimeVibrated > totalTime) {
+                        tts.speak("I see " + amountFaces + ",faces.", TextToSpeech.QUEUE_FLUSH, null);
+                        v.vibrate(pattern, -1);
+                        lastTimeVibrated = System.currentTimeMillis();
+                    }
+
+
+
+            }
+        }
+
+
+
+
+
+
+        public void playSound(){ //play a cash sound !
             final MediaPlayer mediaPlayer = new MediaPlayer();
             Uri uri = Uri.parse("android.resource://" + getPackageName() + "/"+R.raw.success);
             try {
@@ -328,43 +534,6 @@ public final class FaceTrackerActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
         }
-        /**
-         * Update the position/characteristics of the face within the overlay.
-         */
-        Vibrator v = (Vibrator) this.context.getSystemService(Context.VIBRATOR_SERVICE);
-        @Override
-        public void onUpdate(FaceDetector.Detections<Face> detectionResults, Face face) {
-            float centerx=0;
-            float centery=0;
-            int orientation = context.getResources().getConfiguration().orientation;
-            if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                centerx = mFaceGraphic.translateX(mCameraSource.getPreviewSize().getWidth()/2);
-                centery = mFaceGraphic.translateY(mCameraSource.getPreviewSize().getHeight()/2);
-            }
-            if (orientation == Configuration.ORIENTATION_PORTRAIT) {
-                centery = mFaceGraphic.translateX(mCameraSource.getPreviewSize().getWidth()/2);
-                centerx = mFaceGraphic.translateY(mCameraSource.getPreviewSize().getHeight()/2);
-            }
-            mOverlay.add(mFaceGraphic);
-            mFaceGraphic.updateFace(face);
-            float x = mFaceGraphic.translateX(face.getPosition().x + face.getWidth() / 2);
-            float y = mFaceGraphic.translateY(face.getPosition().y + face.getHeight() / 2);
-
-            double distanceFromCenter = Math.sqrt(Math.pow((centerx - x),2) + Math.pow((centery-y),2));
-            Log.d("AA", "centerx:"+Float.toString(centerx)+" "
-                    + "centery:"+Float.toString(centery)+" "
-                    + "x:"+Float.toString(x)+" "
-                    + "y:"+Float.toString(y));
-
-
-            // Vibrate for 10 milliseconds
-            //long [] pattern = {0,(long)distanceFromCenter/2,700-(long)distanceFromCenter};
-            //v.vibrate(pattern, 1);
-            if((int)distanceFromCenter>20) {
-                v.vibrate((long) distanceFromCenter / 10);
-            }
-        }
-
         /**
          * Hide the graphic when the corresponding face was not detected.  This can happen for
          * intermediate frames temporarily (e.g., if the face was momentarily blocked from
