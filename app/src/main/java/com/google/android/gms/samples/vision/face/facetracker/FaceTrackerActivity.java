@@ -41,6 +41,8 @@ import android.view.View;
 import android.view.KeyEvent;
 import android.view.InputEvent;
 import android.speech.tts.TextToSpeech;
+import android.widget.Toast;
+
 import java.util.Locale;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -93,6 +95,8 @@ public final class FaceTrackerActivity extends AppCompatActivity {
             case KeyEvent.KEYCODE_VOLUME_UP:        //when volume up is pressed..
                 if (action == KeyEvent.ACTION_DOWN) {
                     increaseTrackerMode();          //switch to next trackermode
+                    Context context = getApplicationContext();
+                    Toast.makeText(context, "Mode "+ Integer.toString(trackerMode)+ " Selected", Toast.LENGTH_SHORT).show();
                 }
                 return true;
             case KeyEvent.KEYCODE_VOLUME_DOWN:
@@ -105,19 +109,22 @@ public final class FaceTrackerActivity extends AppCompatActivity {
         }
     }
 
-
     public void toggleCountMode(){  //toggle if count mode is on
         if(countMode == 0){         //if count mode is off
             mCameraSource.release();
             countMode = 1;          //turn it on
             createCameraSource();   //recreate cam source
             startCameraSource();
+            Context context = getApplicationContext();
+            Toast.makeText(context, "Count Mode On", Toast.LENGTH_SHORT).show();
         }
         else if(countMode == 1){ //if count mode on
             mCameraSource.release();
             countMode = 0;       //turn it off
             createCameraSource();//recreate cam source
             startCameraSource();
+            Context context = getApplicationContext();
+            Toast.makeText(context, "Count Mode Off", Toast.LENGTH_SHORT).show();
         }
 
     }
