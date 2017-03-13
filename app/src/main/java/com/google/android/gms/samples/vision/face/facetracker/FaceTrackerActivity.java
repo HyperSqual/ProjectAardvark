@@ -81,9 +81,15 @@ public final class FaceTrackerActivity extends AppCompatActivity {
     // Activity Methods
     //==============================================================================================
 
-    private int trackerMode = 0; //0 : Gradient clear to center. 1 : Continuous left, Beeps Right. 2 : Gradient continous left, gradient beeps right
-    private int trackerModeMax = 2;
+    private int trackerMode = 3;    //0 : Gradient clear to center.
+                                    // 1 : Continuous left, Beeps Right.
+                                    // 2 : Gradient continous left, gradient beeps right
+                                    // 3 : Only vibrate gradient when A or S is pressed
+    private int trackerModeMax = 3;
     private int countMode = 0; //boolean for count mode
+    private int isAPressed;
+    private int isSPressed;
+
     TextToSpeech tts;
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) { //catches keypresses
@@ -99,11 +105,27 @@ public final class FaceTrackerActivity extends AppCompatActivity {
                 if (action == KeyEvent.ACTION_DOWN) { //when volume down is pressed..
                     toggleCountMode();
                 }
-                return true;
+            case KeyEvent.KEYCODE_A:
+                if(action == KeyEvent.ACTION_DOWN) {
+                    isAPressed = 1;
+                }
+                if(action == KeyEvent.ACTION_UP) {
+                    isAPressed = 0;
+                }
+            case KeyEvent.KEYCODE_S:
+                if(action == KeyEvent.ACTION_DOWN) {
+                    isSPressed = 1;
+                }
+                if(action == KeyEvent.ACTION_UP) {
+                    isSPressed = 0;
+                }
             default:
-            return super.dispatchKeyEvent(event); //gotta find out how to make this work
+            return super.dispatchKeyEvent(event);
+            }
+            //return true;
+            //gotta find out how to make this work
         }
-    }
+
 
 
     public void toggleCountMode(){  //toggle if count mode is on
@@ -466,7 +488,22 @@ public final class FaceTrackerActivity extends AppCompatActivity {
                         playSound(); //play sound
                         v.cancel(); //stop vibrating
                     }
+                } else if(trackerMode == 3) { // tracker mode 3: only vibrate when A or S is pressed
+                    if (distanceFromCenterX > targetDistance) { //if distance from center is greater than 20 px..
+                        if (isAPressed == 1) {
+                            if (x < centerx) {          //if face is on the left of center..
+                                v.vibrate((long) distanceFromCenterX / 10);   // vibrate continuously
+                            }
+                        }
+
+                        if (isSPressed == 1) {
+                            if (x > centerx) {          //if face is on the left of center..
+                                v.vibrate((long) distanceFromCenterX / 10);   // vibrate continuously
+                            }
+                        }
+                    }
                 }
+
             }
 
             else if(countMode==1){ // if count mode is on...!
