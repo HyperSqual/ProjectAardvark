@@ -126,8 +126,6 @@ public final class FaceTrackerActivity extends AppCompatActivity {
             default:
             return super.dispatchKeyEvent(event);
             }
-            //return true;
-            //gotta find out how to make this work
         }
 
 
@@ -445,10 +443,6 @@ public final class FaceTrackerActivity extends AppCompatActivity {
             double targetDistance = 30;
             double distanceFromCenter = Math.sqrt(Math.pow((centerx - x),2) + Math.pow((centery-y),2));
             double distanceFromCenterX = Math.abs(centerx - x);
-//            Log.d("AA", "centerx:"+Float.toString(centerx)+" "
-//                    + "centery:"+Float.toString(centery)+" "
-//                    + "x:"+Float.toString(x)+" "
-//                    + "y:"+Float.toString(y));
 
 
             if(countMode==0) { //only do all this stuff if countmode is OFF
@@ -514,9 +508,6 @@ public final class FaceTrackerActivity extends AppCompatActivity {
             }
 
             else if(countMode==1){ // if count mode is on...!
-
-
-
                     int amountFaces = detectionResults.getDetectedItems().size(); //count all faces
                     ArrayList<Integer> patternList = new ArrayList<Integer>();
                     patternList.add(100); //add delay before beginning
