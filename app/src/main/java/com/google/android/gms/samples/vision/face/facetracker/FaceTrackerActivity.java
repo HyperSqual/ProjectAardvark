@@ -40,6 +40,7 @@ import android.util.Log;
 import android.view.View;
 import android.view.KeyEvent;
 import android.view.InputEvent;
+import android.view.MotionEvent;
 import android.speech.tts.TextToSpeech;
 import android.widget.Toast;
 
@@ -109,7 +110,7 @@ public final class FaceTrackerActivity extends AppCompatActivity {
                 if (action == KeyEvent.ACTION_DOWN) { //when volume down is pressed..
                     toggleCountMode();
                 }
-            case KeyEvent.KEYCODE_A:
+            case KeyEvent.KEYCODE_SPACE:
                 if(action == KeyEvent.ACTION_DOWN) {
                     isAPressed = 1;
                 }
@@ -126,7 +127,32 @@ public final class FaceTrackerActivity extends AppCompatActivity {
             default:
             return super.dispatchKeyEvent(event);
             }
+
         }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        //mGestureDetector.onTouchEvent(event);
+        int action = event.getActionMasked();
+        Context context = getApplicationContext();
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+                if(action == MotionEvent.ACTION_DOWN) {
+
+                    isSPressed = 1;
+                    Toast.makeText(context, "Touching", Toast.LENGTH_SHORT).show();
+                }
+            case MotionEvent.ACTION_UP:
+                if(action == MotionEvent.ACTION_UP) {
+
+                    isSPressed = 0;
+                    Toast.makeText(context, "No longer Touching", Toast.LENGTH_SHORT).show();
+                }
+            default:
+                return super.onTouchEvent(event);
+        }
+    }
+
 
 
     public void toggleCountMode(){  //toggle if count mode is on
