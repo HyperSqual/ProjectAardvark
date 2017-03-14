@@ -25,6 +25,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Camera;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
@@ -279,9 +280,10 @@ public final class FaceTrackerActivity extends AppCompatActivity {
         }
 
         mCameraSource= new CameraSource.Builder(context, detector)
-                .setRequestedPreviewSize(720, 480)
+                .setRequestedPreviewSize(720/2, 480/2)
                 .setFacing(CameraSource.CAMERA_FACING_BACK)
-                .setRequestedFps(60.0f)
+                .setRequestedFps(30.0f)
+                .setAutoFocusEnabled(true)
                 .build();
 
     }
@@ -534,37 +536,35 @@ public final class FaceTrackerActivity extends AppCompatActivity {
             }
 
             else if(countMode==1){ // if count mode is on...!
-                    int amountFaces = detectionResults.getDetectedItems().size(); //count all faces
-                    ArrayList<Integer> patternList = new ArrayList<Integer>();
-                    patternList.add(100); //add delay before beginning
-                    for(int i=0; i < amountFaces; i++){ //loop and add beeps and pauses
+                int amountFaces = detectionResults.getDetectedItems().size(); //count all faces
+                int totalTime = 1000 + 300 * amountFaces + 5000 ; //calculate total time
+                ArrayList<Integer> patternList = new ArrayList<Integer>();
+                patternList.add(1000); //add delay before beginning
+
+                if( System.currentTimeMillis() - lastTimeVibrated > totalTime ) {
+                    lastTimeVibrated = System.currentTimeMillis();
+                    for (int i = 0; i < amountFaces; i++) { //loop and add beeps and pauses
                         patternList.add(100);
                         patternList.add(200);
                     }
                     patternList.add(0);                 //add final beep
-                    patternList.add(2000);              //add final pause
+                    patternList.add(5000);              //add final pause
 
                     //convert ArrayList to array:
                     long[] pattern = new long[patternList.size()]; //create array size of list
-                    for (int i=0; i < pattern.length; i++)         //loop and add every element
+                    for (int i = 0; i < pattern.length; i++)         //loop and add every element
                     {
                         pattern[i] = patternList.get(i).intValue();
                     }
-
-
-                    int totalTime = 100 + 300 * amountFaces + 2000 + 8000; //calculate total time
                     // vibrate for created pattern once
-
-
-
                     tts.setLanguage(Locale.US);
-                    if(!tts.isSpeaking()&& System.currentTimeMillis() - lastTimeVibrated > totalTime) {
+                    if (!tts.isSpeaking()) {
+                        v.cancel();
                         tts.speak("I see " + amountFaces + ",faces.", TextToSpeech.QUEUE_FLUSH, null);
                         v.vibrate(pattern, -1);
-                        lastTimeVibrated = System.currentTimeMillis();
+
                     }
-
-
+                }
 
             }
         }
